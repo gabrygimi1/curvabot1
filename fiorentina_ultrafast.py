@@ -2,12 +2,12 @@ import requests
 import time
 import json
 import concurrent.futures
-import random
-import os   # <– IMPORT QUI !!
 
 # =========================================
-# CONFIG
+# CONFIG FISSI
 # =========================================
+
+MATCH_URL = "https://tickets.acffiorentina.com/tickets/match/M30303/006"
 
 WEBHOOK = "https://discord.com/api/webhooks/1441088068802318347/2h9ChK1MH23WR6665v3CKPQ4g2Q5j8ETaqCguqv0sPAC6NEZbDETaERG_ed2C0rYd9P7"
 
@@ -19,6 +19,7 @@ HEADERS = {
 SETTORI_CURVA = ["S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S10"]
 
 INTERVALLO = 0.8
+
 session = requests.Session()
 
 
@@ -88,15 +89,7 @@ def main():
     print("   AVVIO BOT CURVA FERROVIA ")
     print("============================\n")
 
-    # 🔥 LETTURA CORRETTA VARIABILE D'AMBIENTE
-    match_url = os.getenv("MATCH_URL")
-
-    if not match_url:
-        print("❌ ERRORE: Devi impostare MATCH_URL nelle variabili ambiente Railway!")
-        print("Esempio MATCH_URL = https://tickets.acffiorentina.com/tickets/match/M30339/002")
-        exit()
-
-    evento, progressivo = estrai_match_info(match_url)
+    evento, progressivo = estrai_match_info(MATCH_URL)
 
     print("\n==============================")
     print("   MONITOR CURVA FERROVIA (ULTRA)")
@@ -109,6 +102,7 @@ def main():
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         while True:
+
             futures = {
                 executor.submit(check_settore, evento, progressivo, settore): settore
                 for settore in SETTORI_CURVA
@@ -129,6 +123,7 @@ def main():
 
                 if disponibili > 0:
                     print(f"🔥 {settore} → {disponibili} disponibili!")
+
                     if settore not in notificati:
                         msg = (
                             f"🔥 **POSTI DISPONIBILI — CURVA FERROVIA** 🔥\n"
@@ -138,6 +133,7 @@ def main():
                         )
                         send_discord(msg)
                         notificati.add(settore)
+
                 else:
                     print(f"⏳ {settore}: 0 posti")
 
