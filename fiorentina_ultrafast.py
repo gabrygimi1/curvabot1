@@ -3,6 +3,7 @@ import time
 import json
 import concurrent.futures
 import random
+import os
 
 # =========================================
 # CONFIG
@@ -17,18 +18,15 @@ HEADERS = {
 
 SETTORI_CURVA = ["S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S10"]
 
-# tempo tra un giro e l’altro (super aggressivo ma sicuro)
-INTERVALLO = 0.8
+INTERVALLO = 0.8  # secondi
 
 session = requests.Session()
 
-
 # =========================================
-# FUNZIONI UTILI
+# FUNZIONI
 # =========================================
 
 def send_discord(msg: str):
-    """Invia notifica al webhook Discord"""
     try:
         session.post(WEBHOOK, json={"content": msg}, timeout=5)
         print("🔔 Notifica inviata!")
@@ -37,16 +35,12 @@ def send_discord(msg: str):
 
 
 def estrai_match_info(url: str):
-    """Estrae EVENTO e PROGRESSIVO dal link principale"""
     after = url.split("/match/")[1]
     evento, progressivo = after.split("/")[:2]
     return evento, progressivo
 
 
 def parse_variable(html: str, varname: str):
-    """
-    Legge 'var settore = {...}' oppure altri JSON simili all'interno dell'HTML
-    """
     marker = f"var {varname} ="
     i = html.find(marker)
     if i == -1:
@@ -65,9 +59,6 @@ def parse_variable(html: str, varname: str):
 
 
 def check_settore(evento: str, progressivo: str, settore: str):
-    """Controlla un settore specifico della Curva Ferrovia"""
-
-    # esempio: https://tickets.acffiorentina.com/tickets/match/M30339/002/G_CS/S03/0
     url = f"https://tickets.acffiorentina.com/tickets/match/{evento}/{progressivo}/G_CS/{settore}/0"
 
     try:
@@ -93,11 +84,19 @@ def check_settore(evento: str, progressivo: str, settore: str):
 # =========================================
 
 def main():
+
     print("============================")
     print("   AVVIO BOT CURVA FERROVIA ")
     print("============================\n")
 
-    match_url = input("🎯 Inserisci link partita: ").strip()
+    # Legge MATCH_URL da variabili ambiente (Railway)
+    match_url = os.getenv("MATCH_URL")
+
+    if not match_url:
+        print("❌ ERRORE: Devi impostare MATCH_URL nelle variabili ambiente Railway!")
+        print("Esempio MATCH_URL = https://tickets.acffiorentina.com/tickets/match/M30339/002")
+        return
+
     evento, progressivo = estrai_match_info(match_url)
 
     print("\n==============================")
@@ -107,7 +106,7 @@ def main():
     print(f"📌 Evento: {evento} / {progressivo}")
     print("📡 Monitor parallelo su S01 → S10 (ULTRA FAST MODE)\n")
 
-    notificati = set()  # evita spam su Discord
+    notificati = set()
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         while True:
@@ -116,8 +115,6 @@ def main():
                 executor.submit(check_settore, evento, progressivo, settore): settore
                 for settore in SETTORI_CURVA
             }
-
-            trovati = False
 
             for future in concurrent.futures.as_completed(futures):
                 settore = futures[future]
@@ -133,7 +130,6 @@ def main():
                     continue
 
                 if disponibili > 0:
-                    trovati = True
                     print(f"🔥 {settore} → {disponibili} disponibili!")
 
                     if settore not in notificati:
@@ -145,12 +141,9 @@ def main():
                         )
                         send_discord(msg)
                         notificati.add(settore)
+
                 else:
                     print(f"⏳ {settore}: 0 posti")
-
-            # Se vuoi che quando trova un posto si chiude:
-            # if trovati:
-            #     break
 
             time.sleep(INTERVALLO)
 
